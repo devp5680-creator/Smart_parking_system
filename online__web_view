@@ -1,0 +1,746 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Smart Parking — Control Hub</title>
+  <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;600;800;900&family=Syne:wght@400;600;700&display=swap" rel="stylesheet"/>
+  <style>
+    :root {
+      --bg:       #050c18;
+      --surface:  #0b1628;
+      --border:   rgba(0,200,255,0.12);
+      --cyan:     #00d4ff;
+      --cyan-dim: rgba(0,212,255,0.15);
+      --green:    #00ff9d;
+      --green-dim:rgba(0,255,157,0.12);
+      --red:      #ff3d6a;
+      --red-dim:  rgba(255,61,106,0.12);
+      --amber:    #ffb800;
+      --amber-dim:rgba(255,184,0,0.15);
+      --text:     #e2ecff;
+      --muted:    rgba(180,200,240,0.45);
+      --glow-c:   0 0 24px rgba(0,212,255,0.35);
+      --glow-g:   0 0 24px rgba(0,255,157,0.35);
+      --glow-r:   0 0 24px rgba(255,61,106,0.35);
+    }
+
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: 'Syne', sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+      overflow-x: hidden;
+    }
+
+    /* ── Grid Background ── */
+    body::before {
+      content: '';
+      position: fixed; inset: 0;
+      background-image:
+        linear-gradient(rgba(0,212,255,0.04) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(0,212,255,0.04) 1px, transparent 1px);
+      background-size: 48px 48px;
+      pointer-events: none;
+      z-index: 0;
+    }
+
+    body::after {
+      content: '';
+      position: fixed;
+      top: -40%; left: 50%; transform: translateX(-50%);
+      width: 900px; height: 600px;
+      background: radial-gradient(ellipse at center, rgba(0,100,180,0.18) 0%, transparent 70%);
+      pointer-events: none;
+      z-index: 0;
+    }
+
+    .page { position: relative; z-index: 1; max-width: 1100px; margin: 0 auto; padding: 36px 24px 60px; }
+
+    /* ── Header ── */
+    header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 44px;
+      padding-bottom: 22px;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .brand {
+      display: flex; align-items: center; gap: 14px;
+    }
+
+    .brand-icon {
+      width: 46px; height: 46px;
+      background: linear-gradient(135deg, var(--cyan), #0070b8);
+      border-radius: 12px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 22px;
+      box-shadow: var(--glow-c);
+      flex-shrink: 0;
+    }
+
+    .brand-text h1 {
+      font-family: 'Orbitron', monospace;
+      font-size: 18px;
+      font-weight: 800;
+      letter-spacing: 0.06em;
+      color: var(--text);
+    }
+
+    .brand-text p {
+      font-size: 11px;
+      color: var(--muted);
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      margin-top: 2px;
+    }
+
+    .header-right {
+      display: flex; align-items: center; gap: 20px;
+    }
+
+    .live-badge {
+      display: flex; align-items: center; gap: 7px;
+      font-size: 11px;
+      font-weight: 600;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      color: var(--green);
+      background: var(--green-dim);
+      border: 1px solid rgba(0,255,157,0.25);
+      padding: 6px 14px;
+      border-radius: 100px;
+    }
+
+    .live-dot {
+      width: 7px; height: 7px;
+      border-radius: 50%;
+      background: var(--green);
+      animation: pulse-green 1.5s ease-in-out infinite;
+    }
+
+    @keyframes pulse-green {
+      0%,100% { opacity: 1; box-shadow: 0 0 0 0 rgba(0,255,157,0.6); }
+      50%      { opacity: 0.8; box-shadow: 0 0 0 5px rgba(0,255,157,0); }
+    }
+
+    .last-update {
+      font-size: 11px;
+      color: var(--muted);
+      letter-spacing: 0.04em;
+    }
+
+    /* ── Stat Cards Row ── */
+    .stats-row {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 16px;
+      margin-bottom: 28px;
+    }
+
+    .stat-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 18px;
+      padding: 22px 20px;
+      position: relative;
+      overflow: hidden;
+      transition: transform 0.25s, border-color 0.25s;
+      animation: fadeUp 0.5s ease both;
+    }
+
+    .stat-card:hover { transform: translateY(-3px); }
+
+    @keyframes fadeUp {
+      from { opacity: 0; transform: translateY(18px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+
+    .stat-card:nth-child(1) { animation-delay: 0.05s; }
+    .stat-card:nth-child(2) { animation-delay: 0.12s; }
+    .stat-card:nth-child(3) { animation-delay: 0.19s; }
+    .stat-card:nth-child(4) { animation-delay: 0.26s; }
+
+    .stat-card::before {
+      content: '';
+      position: absolute;
+      top: 0; left: 0; right: 0;
+      height: 2px;
+      border-radius: 18px 18px 0 0;
+    }
+
+    .stat-card.available::before  { background: linear-gradient(90deg, var(--green), transparent); }
+    .stat-card.occupied::before   { background: linear-gradient(90deg, var(--red), transparent); }
+    .stat-card.gate::before       { background: linear-gradient(90deg, var(--amber), transparent); }
+    .stat-card.occupancy::before  { background: linear-gradient(90deg, var(--cyan), transparent); }
+
+    .stat-card.available:hover  { border-color: rgba(0,255,157,0.3); box-shadow: var(--glow-g); }
+    .stat-card.occupied:hover   { border-color: rgba(255,61,106,0.3); box-shadow: var(--glow-r); }
+    .stat-card.gate:hover       { border-color: rgba(255,184,0,0.3); box-shadow: 0 0 24px rgba(255,184,0,0.3); }
+    .stat-card.occupancy:hover  { border-color: rgba(0,212,255,0.3); box-shadow: var(--glow-c); }
+
+    .stat-label {
+      font-size: 10px;
+      letter-spacing: 0.14em;
+      text-transform: uppercase;
+      color: var(--muted);
+      margin-bottom: 10px;
+      display: flex; align-items: center; gap: 7px;
+    }
+
+    .stat-icon {
+      font-size: 14px;
+    }
+
+    .stat-value {
+      font-family: 'Orbitron', monospace;
+      font-size: 42px;
+      font-weight: 800;
+      line-height: 1;
+      letter-spacing: -0.02em;
+    }
+
+    .stat-value.green  { color: var(--green); text-shadow: 0 0 30px rgba(0,255,157,0.5); }
+    .stat-value.red    { color: var(--red);   text-shadow: 0 0 30px rgba(255,61,106,0.5); }
+    .stat-value.amber  { color: var(--amber); text-shadow: 0 0 30px rgba(255,184,0,0.5); }
+    .stat-value.cyan   { color: var(--cyan);  text-shadow: 0 0 30px rgba(0,212,255,0.5); }
+
+    .stat-sub {
+      font-size: 11px;
+      color: var(--muted);
+      margin-top: 8px;
+    }
+
+    /* gate text  */
+    .gate-text {
+      font-family: 'Orbitron', monospace;
+      font-size: 22px;
+      font-weight: 700;
+      letter-spacing: 0.06em;
+    }
+
+    .gate-text.open   { color: var(--green); text-shadow: 0 0 20px rgba(0,255,157,0.5); }
+    .gate-text.closed { color: var(--red);   text-shadow: 0 0 20px rgba(255,61,106,0.5); }
+
+    /* ── Progress Bar for Occupancy ── */
+    .occ-bar-wrap {
+      margin-top: 12px;
+      height: 5px;
+      background: rgba(255,255,255,0.07);
+      border-radius: 100px;
+      overflow: hidden;
+    }
+
+    .occ-bar {
+      height: 100%;
+      background: linear-gradient(90deg, var(--cyan), #0070ff);
+      border-radius: 100px;
+      transition: width 0.8s cubic-bezier(0.4,0,0.2,1);
+      box-shadow: 0 0 10px rgba(0,212,255,0.5);
+    }
+
+    /* ── Section Title ── */
+    .section-title {
+      font-size: 10px;
+      letter-spacing: 0.18em;
+      text-transform: uppercase;
+      color: var(--muted);
+      margin-bottom: 16px;
+      display: flex; align-items: center; gap: 10px;
+    }
+
+    .section-title::after {
+      content: '';
+      flex: 1;
+      height: 1px;
+      background: var(--border);
+    }
+
+    /* ── Slot Strip ── */
+    .slot-strip {
+      display: flex;
+      gap: 14px;
+      justify-content: stretch;
+      margin-bottom: 28px;
+    }
+
+    .slot-card {
+      flex: 1;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 18px 10px 16px;
+      text-align: center;
+      position: relative;
+      overflow: hidden;
+      cursor: default;
+      transition: transform 0.25s, border-color 0.25s, box-shadow 0.25s;
+      animation: fadeUp 0.5s ease both;
+    }
+
+    .slot-card:nth-child(1) { animation-delay: 0.10s; }
+    .slot-card:nth-child(2) { animation-delay: 0.17s; }
+    .slot-card:nth-child(3) { animation-delay: 0.24s; }
+    .slot-card:nth-child(4) { animation-delay: 0.31s; }
+    .slot-card:nth-child(5) { animation-delay: 0.38s; }
+
+    .slot-card:hover { transform: translateY(-4px); }
+
+    .slot-card.free {
+      border-color: rgba(0,255,157,0.3);
+      box-shadow: var(--glow-g), inset 0 0 30px rgba(0,255,157,0.04);
+    }
+
+    .slot-card.taken {
+      border-color: rgba(255,61,106,0.3);
+      box-shadow: var(--glow-r), inset 0 0 30px rgba(255,61,106,0.04);
+    }
+
+    .slot-card.loading {
+      border-color: var(--border);
+      opacity: 0.6;
+    }
+
+    .slot-card::before {
+      content: '';
+      position: absolute;
+      bottom: 0; left: 0; right: 0;
+      height: 2px;
+    }
+
+    .slot-card.free::before  { background: var(--green); box-shadow: 0 0 10px var(--green); }
+    .slot-card.taken::before { background: var(--red);   box-shadow: 0 0 10px var(--red); }
+
+    .slot-number {
+      font-family: 'Orbitron', monospace;
+      font-size: 10px;
+      font-weight: 600;
+      letter-spacing: 0.16em;
+      color: var(--muted);
+      margin-bottom: 14px;
+    }
+
+    .slot-icon {
+      font-size: 30px;
+      margin-bottom: 10px;
+      display: block;
+    }
+
+    .slot-car-icon {
+      width: 48px;
+      height: 28px;
+      margin: 0 auto 10px;
+      position: relative;
+    }
+
+    .slot-status-text {
+      font-size: 10px;
+      font-weight: 700;
+      letter-spacing: 0.14em;
+      text-transform: uppercase;
+    }
+
+    .slot-card.free  .slot-status-text { color: var(--green); }
+    .slot-card.taken .slot-status-text { color: var(--red); }
+    .slot-card.loading .slot-status-text { color: var(--muted); }
+
+    /* car SVG */
+    .car-svg { width: 52px; height: auto; margin-bottom: 8px; display: block; margin-left: auto; margin-right: auto; }
+
+    /* ── Bottom Row ── */
+    .bottom-row {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 16px;
+    }
+
+    .panel {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 18px;
+      padding: 24px;
+      animation: fadeUp 0.5s ease both;
+    }
+
+    .panel:nth-child(1) { animation-delay: 0.3s; }
+    .panel:nth-child(2) { animation-delay: 0.4s; }
+
+    .panel-title {
+      font-size: 11px;
+      letter-spacing: 0.14em;
+      text-transform: uppercase;
+      color: var(--muted);
+      margin-bottom: 20px;
+      display: flex; align-items: center; gap: 8px;
+    }
+
+    /* Mini bar chart */
+    .mini-chart {
+      display: flex;
+      align-items: flex-end;
+      gap: 8px;
+      height: 80px;
+    }
+
+    .mini-bar-group {
+      display: flex; flex-direction: column; align-items: center; flex: 1; gap: 5px;
+    }
+
+    .mini-bar {
+      width: 100%;
+      border-radius: 5px 5px 0 0;
+      transition: height 0.8s cubic-bezier(0.4,0,0.2,1);
+      background: linear-gradient(180deg, var(--cyan) 0%, rgba(0,100,180,0.4) 100%);
+    }
+
+    .mini-bar-label { font-size: 9px; color: var(--muted); letter-spacing: 0.04em; }
+
+    /* Action button */
+    .action-btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 10px;
+      background: linear-gradient(135deg, var(--cyan) 0%, #0060c0 100%);
+      color: #000a14;
+      font-family: 'Syne', sans-serif;
+      font-weight: 700;
+      font-size: 13px;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      padding: 14px 28px;
+      border: none;
+      border-radius: 12px;
+      cursor: pointer;
+      margin-top: 20px;
+      transition: all 0.25s;
+      box-shadow: 0 4px 24px rgba(0,212,255,0.3);
+      width: 100%;
+      justify-content: center;
+    }
+
+    .action-btn:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 8px 32px rgba(0,212,255,0.5);
+    }
+
+    /* Occupancy ring */
+    .ring-wrap {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-direction: column;
+      gap: 10px;
+    }
+
+    .ring-svg {
+      transform: rotate(-90deg);
+      filter: drop-shadow(0 0 10px rgba(0,212,255,0.4));
+    }
+
+    .ring-label {
+      font-family: 'Orbitron', monospace;
+      font-size: 28px;
+      font-weight: 800;
+      color: var(--cyan);
+      text-shadow: 0 0 20px rgba(0,212,255,0.5);
+      margin-top: -4px;
+    }
+
+    .ring-sub {
+      font-size: 10px;
+      letter-spacing: 0.14em;
+      text-transform: uppercase;
+      color: var(--muted);
+      margin-top: -6px;
+    }
+
+    /* shimmer for loading */
+    @keyframes shimmer {
+      0%   { opacity: 0.3; }
+      50%  { opacity: 0.8; }
+      100% { opacity: 0.3; }
+    }
+
+    .loading-val { animation: shimmer 1.2s ease-in-out infinite; }
+
+    /* Responsive */
+    @media (max-width: 700px) {
+      .stats-row    { grid-template-columns: 1fr 1fr; }
+      .bottom-row   { grid-template-columns: 1fr; }
+      .stat-value   { font-size: 32px; }
+    }
+  </style>
+</head>
+<body>
+
+<div class="page">
+
+  <!-- ── Header ── -->
+  <header>
+    <div class="brand">
+      <div class="brand-icon">🅿</div>
+      <div class="brand-text">
+        <h1>ParkSense</h1>
+        <p>Smart Parking Control Hub</p>
+      </div>
+    </div>
+    <div class="header-right">
+      <div class="last-update" id="updateTime">Connecting…</div>
+      <div class="live-badge"><span class="live-dot"></span>Live</div>
+    </div>
+  </header>
+
+  <!-- ── Stat Cards ── -->
+  <div class="stats-row">
+    <div class="stat-card available">
+      <div class="stat-label"><span class="stat-icon">🟢</span>Available</div>
+      <div class="stat-value green loading-val" id="available">--</div>
+      <div class="stat-sub">Open slots</div>
+    </div>
+
+    <div class="stat-card occupied">
+      <div class="stat-label"><span class="stat-icon">🔴</span>Occupied</div>
+      <div class="stat-value red loading-val" id="occupied">--</div>
+      <div class="stat-sub">Cars parked</div>
+    </div>
+
+    <div class="stat-card gate">
+      <div class="stat-label"><span class="stat-icon">🚧</span>Gate Status</div>
+      <div class="gate-text loading-val" id="gate">---</div>
+      <div class="stat-sub" id="gate-sub">Checking gate…</div>
+    </div>
+
+    <div class="stat-card occupancy">
+      <div class="stat-label"><span class="stat-icon">📊</span>Occupancy</div>
+      <div class="stat-value cyan loading-val" id="percent">--%</div>
+      <div class="occ-bar-wrap">
+        <div class="occ-bar" id="occ-bar" style="width:0%"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── Slot Strip ── -->
+  <div class="section-title">Slot Status — Bay A</div>
+  <div class="slot-strip" id="slotStrip">
+    <!-- Slots rendered by JS -->
+  </div>
+
+  <!-- ── Bottom Panels ── -->
+  <div class="bottom-row">
+
+    <!-- Mini timeline chart -->
+    <div class="panel">
+      <div class="panel-title">📈 Recent Occupancy History</div>
+      <div class="mini-chart" id="miniChart">
+        <!-- bars rendered by JS -->
+      </div>
+    </div>
+
+    <!-- Actions -->
+    <div class="panel">
+      <div class="panel-title">⚙️ System Actions</div>
+      <p style="font-size:13px; color:var(--muted); line-height:1.7;">
+        Access advanced analytics, ML-powered predictions, and historical heatmaps for this parking facility.
+      </p>
+      <button class="action-btn" onclick="window.location.href='analytics.html'">
+        <span>View ML Analytics</span>
+        <span>→</span>
+      </button>
+    </div>
+
+  </div>
+</div>
+
+<!-- ── Car SVG (reused) ── -->
+<template id="car-free-tpl">
+  <svg class="car-svg" viewBox="0 0 64 32" fill="none" xmlns="http://www.w3.org/2000/svg">
+    <rect x="4" y="14" width="56" height="16" rx="5" fill="rgba(0,255,157,0.12)" stroke="rgba(0,255,157,0.4)" stroke-width="1.5"/>
+    <path d="M14 14 L20 5 H44 L50 14Z" fill="rgba(0,255,157,0.08)" stroke="rgba(0,255,157,0.3)" stroke-width="1.2"/>
+    <circle cx="16" cy="29" r="4" fill="rgba(0,255,157,0.2)" stroke="rgba(0,255,157,0.5)" stroke-width="1.5"/>
+    <circle cx="48" cy="29" r="4" fill="rgba(0,255,157,0.2)" stroke="rgba(0,255,157,0.5)" stroke-width="1.5"/>
+  </svg>
+</template>
+
+<template id="car-taken-tpl">
+  <svg class="car-svg" viewBox="0 0 64 32" fill="none" xmlns="http://www.w3.org/2000/svg">
+    <rect x="4" y="14" width="56" height="16" rx="5" fill="rgba(255,61,106,0.18)" stroke="rgba(255,61,106,0.5)" stroke-width="1.5"/>
+    <path d="M14 14 L20 5 H44 L50 14Z" fill="rgba(255,61,106,0.14)" stroke="rgba(255,61,106,0.4)" stroke-width="1.2"/>
+    <circle cx="16" cy="29" r="4" fill="rgba(255,61,106,0.25)" stroke="rgba(255,61,106,0.6)" stroke-width="1.5"/>
+    <circle cx="48" cy="29" r="4" fill="rgba(255,61,106,0.25)" stroke="rgba(255,61,106,0.6)" stroke-width="1.5"/>
+    <line x1="8" y1="8" x2="56" y2="26" stroke="rgba(255,61,106,0.15)" stroke-width="1"/>
+  </svg>
+</template>
+
+<script>
+  const TOKEN = "Qu4P2356MOczKucLW1Z3Ijl1YnIqaPw7";
+  const BASE  = `https://blynk.cloud/external/api/get?token=${TOKEN}`;
+
+  // ── Slot strip init ──
+  const strip = document.getElementById('slotStrip');
+  for (let i = 1; i <= 5; i++) {
+    const card = document.createElement('div');
+    card.className = 'slot-card loading';
+    card.id = `slot-${i}`;
+    card.innerHTML = `
+      <div class="slot-number">Slot ${i}</div>
+      <svg class="car-svg" viewBox="0 0 64 32" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <rect x="4" y="14" width="56" height="16" rx="5" fill="rgba(180,200,240,0.06)" stroke="rgba(180,200,240,0.12)" stroke-width="1.5"/>
+        <path d="M14 14 L20 5 H44 L50 14Z" fill="rgba(180,200,240,0.04)" stroke="rgba(180,200,240,0.1)" stroke-width="1.2"/>
+        <circle cx="16" cy="29" r="4" fill="rgba(180,200,240,0.06)" stroke="rgba(180,200,240,0.15)" stroke-width="1.5"/>
+        <circle cx="48" cy="29" r="4" fill="rgba(180,200,240,0.06)" stroke="rgba(180,200,240,0.15)" stroke-width="1.5"/>
+      </svg>
+      <div class="slot-status-text">—</div>
+    `;
+    strip.appendChild(card);
+  }
+
+  // ── Mini history chart init ──
+  const historyLabels = ['-8m','-6m','-4m','-2m','now'];
+  const histChart = document.getElementById('miniChart');
+  historyLabels.forEach((lbl, i) => {
+    const h = Math.floor(Math.random() * 60) + 15;
+    const grp = document.createElement('div');
+    grp.className = 'mini-bar-group';
+    grp.innerHTML = `
+      <div class="mini-bar" id="hbar-${i}" style="height:${h}px; opacity:${0.4 + i*0.15}"></div>
+      <div class="mini-bar-label">${lbl}</div>
+    `;
+    histChart.appendChild(grp);
+  });
+
+  // ── Slot update ──
+  function updateSlot(index, value) {
+    const card = document.getElementById(`slot-${index}`);
+    if (!card) return;
+
+    const taken = parseInt(value) === 1;
+    card.className = `slot-card ${taken ? 'taken' : 'free'}`;
+
+    const svgFree = `
+      <svg class="car-svg" viewBox="0 0 64 36" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <rect x="4" y="14" width="56" height="16" rx="5" fill="rgba(0,255,157,0.12)" stroke="rgba(0,255,157,0.45)" stroke-width="1.5"/>
+        <path d="M14 14 L20 5 H44 L50 14Z" fill="rgba(0,255,157,0.08)" stroke="rgba(0,255,157,0.3)" stroke-width="1.2"/>
+        <circle cx="16" cy="30" r="4" fill="rgba(0,255,157,0.2)" stroke="rgba(0,255,157,0.55)" stroke-width="1.5"/>
+        <circle cx="48" cy="30" r="4" fill="rgba(0,255,157,0.2)" stroke="rgba(0,255,157,0.55)" stroke-width="1.5"/>
+        <rect x="24" y="8" width="16" height="6" rx="2" fill="rgba(0,255,157,0.1)" stroke="rgba(0,255,157,0.25)" stroke-width="1"/>
+      </svg>`;
+
+    const svgTaken = `
+      <svg class="car-svg" viewBox="0 0 64 36" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <rect x="4" y="14" width="56" height="16" rx="5" fill="rgba(255,61,106,0.18)" stroke="rgba(255,61,106,0.55)" stroke-width="1.5"/>
+        <path d="M14 14 L20 5 H44 L50 14Z" fill="rgba(255,61,106,0.14)" stroke="rgba(255,61,106,0.4)" stroke-width="1.2"/>
+        <circle cx="16" cy="30" r="4" fill="rgba(255,61,106,0.25)" stroke="rgba(255,61,106,0.65)" stroke-width="1.5"/>
+        <circle cx="48" cy="30" r="4" fill="rgba(255,61,106,0.25)" stroke="rgba(255,61,106,0.65)" stroke-width="1.5"/>
+        <rect x="24" y="8" width="16" height="6" rx="2" fill="rgba(255,61,106,0.12)" stroke="rgba(255,61,106,0.3)" stroke-width="1"/>
+        <circle cx="32" cy="18" r="2" fill="rgba(255,184,0,0.8)"/>
+      </svg>`;
+
+    card.innerHTML = `
+      <div class="slot-number">Slot ${index}</div>
+      ${taken ? svgTaken : svgFree}
+      <div class="slot-status-text">${taken ? 'Occupied' : 'Free'}</div>
+    `;
+  }
+
+  // ── Gate display ──
+  function updateGate(raw) {
+    const el = document.getElementById('gate');
+    const sub = document.getElementById('gate-sub');
+    el.classList.remove('loading-val');
+    const isOpen = raw.trim().toLowerCase() === '1' || raw.trim().toLowerCase() === 'open';
+    el.textContent = isOpen ? 'OPEN' : 'CLOSED';
+    el.className   = `gate-text ${isOpen ? 'open' : 'closed'}`;
+    sub.textContent = isOpen ? 'Barrier raised' : 'Barrier lowered';
+  }
+
+  // ── Main fetch ──
+  async function fetchData() {
+    try {
+      const [v0, v1, v2, v3] = await Promise.all([
+        fetch(`${BASE}&V0`).then(r => r.text()),
+        fetch(`${BASE}&V1`).then(r => r.text()),
+        fetch(`${BASE}&V2`).then(r => r.text()),
+        fetch(`${BASE}&V3`).then(r => r.text()),
+      ]);
+
+      // Stats
+      const avEl = document.getElementById('available');
+      const ocEl = document.getElementById('occupied');
+      const pcEl = document.getElementById('percent');
+
+      avEl.textContent = v0.trim();
+      avEl.classList.remove('loading-val');
+
+      ocEl.textContent = v1.trim();
+      ocEl.classList.remove('loading-val');
+      updateSlotsSequential(v1);
+
+      const pct = parseFloat(v3) || 0;
+      pcEl.textContent = pct.toFixed(0) + '%';
+      pcEl.classList.remove('loading-val');
+      document.getElementById('occ-bar').style.width = Math.min(pct, 100) + '%';
+
+      updateGate(v2);
+
+      // Timestamp
+      const now = new Date();
+      document.getElementById('updateTime').textContent =
+        'Updated ' + now.toLocaleTimeString([], {hour:'2-digit', minute:'2-digit', second:'2-digit'});
+
+      // Update history bar (latest)
+      const latestBar = document.getElementById(`hbar-4`);
+      if (latestBar) latestBar.style.height = Math.max(pct * 0.8, 10) + 'px';
+
+    } catch (e) {
+      console.warn('Fetch error:', e);
+    }
+
+    function updateSlotsSequential(count) {
+  count = parseInt(count) || 0;
+
+  for (let i = 1; i <= 5; i++) {
+    const card = document.getElementById(`slot-${i}`);
+    if (!card) return;
+
+    const taken = i <= count;
+
+    card.className = `slot-card ${taken ? 'taken' : 'free'}`;
+
+    const svgFree = `
+<svg class="car-svg" viewBox="0 0 64 32" xmlns="http://www.w3.org/2000/svg">
+  <rect x="6" y="14" width="52" height="12" rx="4"
+        fill="rgba(0,255,157,0.08)"
+        stroke="rgba(0,255,157,0.6)" stroke-width="2"/>
+  <circle cx="18" cy="28" r="3" fill="rgba(0,255,157,0.7)"/>
+  <circle cx="46" cy="28" r="3" fill="rgba(0,255,157,0.7)"/>
+</svg>
+`;   // keep your existing SVG
+    const svgTaken = `
+<svg class="car-svg" viewBox="0 0 64 32" xmlns="http://www.w3.org/2000/svg">
+  <rect x="6" y="14" width="52" height="12" rx="4"
+        fill="rgba(255,61,106,0.5)"
+        stroke="rgba(255,61,106,0.9)" stroke-width="2"/>
+  <circle cx="18" cy="28" r="3" fill="rgba(255,61,106,0.9)"/>
+  <circle cx="46" cy="28" r="3" fill="rgba(255,61,106,0.9)"/>
+</svg>
+`;  // keep your existing SVG
+
+    card.innerHTML = `
+      <div class="slot-number">Slot ${i}</div>
+      ${taken ? svgTaken : svgFree}
+      <div class="slot-status-text">${taken ? 'Occupied' : 'Free'}</div>
+    `;
+  }
+}
+    }
+  
+
+  setInterval(fetchData, 2000);
+  fetchData();
+</script>
+</body>
+</html>
