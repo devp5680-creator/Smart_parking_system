@@ -1,0 +1,216 @@
+#define BLYNK_TEMPLATE_ID "TMPL3BajCM8o6"
+#define BLYNK_TEMPLATE_NAME "Smart parking"
+#define BLYNK_AUTH_TOKEN "Qu4P2356MOczKucLW1Z3Ijl1YnIqaPw7"
+
+#include <WiFi.h>
+#include <BlynkSimpleEsp32.h>
+#include <ESP32Servo.h>
+
+// WiFi
+char ssid[] = "Rishit's A35";
+char pass[] = "123454321";
+
+// Pins
+#define IR1 18
+#define IR2 19
+#define SERVO_PIN 25
+#define GREEN_LED 26
+
+Servo barrierServo;
+
+// Parking setup
+int totalSlots = 5;
+int availableSlots = 5;
+
+// State machine
+int state = 0;
+/*
+0 → Idle
+1 → Entry started
+2 → Exit started
+3 → Reset wait
+*/
+
+// LED blinking control
+unsigned long previousMillis = 0;
+const long interval = 250;
+bool greenState = LOW;
+
+// Gate status
+String gateStatus = "Closed";
+
+
+// ---------------- Setup ----------------
+void setup()
+{
+  Serial.begin(115200);
+
+  pinMode(IR1, INPUT);
+  pinMode(IR2, INPUT);
+  pinMode(GREEN_LED, OUTPUT);
+
+  barrierServo.attach(SERVO_PIN);
+  barrierServo.write(90); // gate closed
+
+  Blynk.begin(BLYNK_AUTH_TOKEN, ssid, pass);
+
+  Serial.println("Smart Parking System Started");
+
+  updateStatus();
+}
+
+
+// ---------------- LED Logic ----------------
+void handleLED(int ir1)
+{
+  if (availableSlots == 0 && ir1 == LOW)
+  {
+    unsigned long currentMillis = millis();
+
+    if (currentMillis - previousMillis >= interval)
+    {
+      previousMillis = currentMillis;
+      greenState = !greenState;
+      digitalWrite(GREEN_LED, greenState);
+    }
+  }
+
+  else if (availableSlots == 0)
+  {
+    digitalWrite(GREEN_LED, LOW);
+  }
+
+  else
+  {
+    digitalWrite(GREEN_LED, HIGH);
+  }
+}
+
+
+// ---------------- Status ----------------
+void updateStatus()
+{
+  Serial.print("Available: ");
+  Serial.print(availableSlots);
+  Serial.print(" | Occupied: ");
+  Serial.print(totalSlots - availableSlots);
+  Serial.print(" | Gate: ");
+  Serial.println(gateStatus);
+
+  // Send slot values
+  Blynk.virtualWrite(V0, availableSlots);
+  Blynk.virtualWrite(V1, totalSlots - availableSlots);
+  Blynk.virtualWrite(V2, gateStatus);
+
+  // Send percentage (direct 20% steps)
+  int occupiedSlots = totalSlots - availableSlots;
+  int percent = (occupiedSlots * 100) / totalSlots;
+
+  Blynk.virtualWrite(V3, percent);
+}
+
+
+// ---------------- Loop ----------------
+void loop()
+{
+  Blynk.run();
+
+  int ir1 = digitalRead(IR1);
+  int ir2 = digitalRead(IR2);
+
+  handleLED(ir1);
+
+
+  // ---------------- IDLE STATE ----------------
+  if (state == 0)
+  {
+    if (ir1 == LOW && availableSlots == 0)
+    {
+      Serial.println("\nParking FULL! Entry Denied");
+
+      Blynk.logEvent("full", "Parking Full! Please wait...");
+
+      delay(500);
+
+      barrierServo.write(90);
+    }
+
+    else if (ir1 == LOW && availableSlots > 0)
+    {
+      Serial.println("\nENTRY detected");
+
+      Blynk.logEvent("Entry", "Car Entering");
+
+      state = 1;
+
+      barrierServo.write(0);
+
+      gateStatus = "Open";
+
+      updateStatus();
+    }
+
+    else if (ir2 == LOW && availableSlots < totalSlots)
+    {
+      Serial.println("\nEXIT detected");
+
+      Blynk.logEvent("Exit", "Car Exiting");
+
+      state = 2;
+
+      barrierServo.write(0);
+
+      gateStatus = "Open";
+
+      updateStatus();
+    }
+  }
+
+
+  // ---------------- ENTRY FLOW ----------------
+  else if (state == 1)
+  {
+    if (ir2 == LOW)
+    {
+      Serial.println("Car ENTERED");
+
+      availableSlots--;
+
+      state = 3;
+    }
+  }
+
+
+  // ---------------- EXIT FLOW ----------------
+  else if (state == 2)
+  {
+    if (ir1 == LOW)
+    {
+      Serial.println("Car EXITED");
+
+      availableSlots++;
+
+      state = 3;
+    }
+  }
+
+
+  // ---------------- RESET STATE ----------------
+  else if (state == 3)
+  {
+    if (ir1 == HIGH && ir2 == HIGH)
+    {
+      Serial.println("System Ready for next car");
+
+      gateStatus = "Closed";
+
+      barrierServo.write(90);
+
+      updateStatus();
+
+      state = 0;
+
+      delay(1000);
+    }
+  }
+}
